@@ -6,12 +6,14 @@
 <meta name="description" content="P.A.I.M.O.N. (Planetary Archive, Irminsul Memory, and Observational Network): an interactive lore constellation with a chat drawer. Fan project, unofficial.">
 <meta name="theme-color" content="#0a1238">
 <title>P.A.I.M.O.N. Planetary Archive</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://unpkg.com https://cdn.botpress.cloud https://files.bpcontent.cloud; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:; connect-src 'self' https: wss:; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<script>if (window.top !== window.self) { try { window.top.location = window.self.location.href; } catch (e) { document.documentElement.style.display = 'none'; } }</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600&family=Pirata+One&display=swap">
-<script src="https://cdn.tailwindcss.com/3.4.17"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
-<script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" integrity="sha384-g4NTh/Iv5PPU4xPyhEWqPcwtNXOvdaDI8LLnyYfyNZOjKJeYQyjzQ9X5275eBjpt" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js" integrity="sha384-uTYyvsSSUZeaPhb5RbKlQa0zY/WpX/QHfvg2mczXyBQOpkWPEDy9lczyp+w7SKXu" crossorigin="anonymous"></script>
 <style>
 /* Layout: one full-screen night sky. Six nodes sit at scattered heights around a lens-flare star;
    a lore chat drawer slides in from the right (bottom sheet on phones). Single dark look by choice. */
@@ -160,6 +162,9 @@ button { font-family: inherit; }
 .stop:focus-visible { outline: 2px solid var(--glow); outline-offset: 4px; border-radius: 6px; }
 .p-era { margin-top: 8px; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--glow); }
 .p-era:empty { display: none; }
+.legal { display: none; position: absolute; z-index: 6; right: max(16px, env(safe-area-inset-right, 0px)); bottom: max(16px, env(safe-area-inset-bottom, 0px)); max-width: 230px; margin: 0; text-align: right; font-size: 10.5px; line-height: 1.5; color: var(--muted); }
+.legal a { color: var(--glow); text-decoration: underline; text-underline-offset: 2px; }
+@media (min-width: 1180px) { .legal { display: block; } }
 /* Botpress runs behind the drawer; hide its own window and bubble */
 .bpChatContainer { position: fixed !important; left: -10000px !important; top: 0 !important; opacity: 0 !important; pointer-events: none !important; }
 
@@ -351,6 +356,7 @@ button { font-family: inherit; }
     <div class="track" id="track" role="radiogroup" aria-label="Age of Teyvat"></div>
   </section>
 
+  <p class="legal" id="legal">Unofficial fan project, not affiliated with HoYoverse. Lore summarized from the <a href="https://genshin-impact.fandom.com/wiki/Genshin_Impact_Wiki" target="_blank" rel="noopener noreferrer">Genshin Impact Wiki</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank" rel="noopener noreferrer">CC BY-SA 3.0</a>). Chat is processed by Botpress.</p>
   <div class="scrim" id="scrim"></div>
 
   <aside class="panel" id="panel" role="dialog" aria-modal="true" aria-labelledby="pTitle" aria-hidden="true" inert>
@@ -369,7 +375,7 @@ button { font-family: inherit; }
       <input id="ask" type="text" placeholder="Ask the archive anything…" aria-label="Your question" />
       <button class="send" type="submit" aria-label="Send"><i data-lucide="send-horizontal"></i></button>
     </form>
-    <div class="note">Answers come from the Lore Keeper bot. Draft lore, not yet checked against the wiki, and it can be wrong. Fan project, unofficial.</div>
+    <div class="note">Your questions are sent to the Lore Keeper bot, run by Botpress. Lore is summarized from the Genshin Impact Wiki (CC BY-SA 3.0), is a draft, and can be wrong. Unofficial fan project.</div>
   </aside>
 </main>
 
@@ -854,8 +860,19 @@ button { font-family: inherit; }
     renderChips(id);
     if (HAS_GSAP && !RM && animate) gsap.from(['.p-title', '.msg'], { y: 14, opacity: 0, duration: .55, stagger: .06, ease: 'power3.out' });
   }
+  /* Soft per-browser limit: 10 questions per rolling 24 hours. Real limits belong in Botpress. */
+  var RL_MAX = 10, RL_WINDOW = 24 * 60 * 60 * 1000, RL_KEY = 'paimon_rl';
+  function rlLoad() {
+    try { var a = JSON.parse(localStorage.getItem(RL_KEY) || '[]'), now = Date.now(); return a.filter(function (t) { return typeof t === 'number' && now - t < RL_WINDOW; }); } catch (e) { return []; }
+  }
+  function rlAllowed() { return rlLoad().length < RL_MAX; }
+  function rlRecord() { try { var a = rlLoad(); a.push(Date.now()); localStorage.setItem(RL_KEY, JSON.stringify(a)); } catch (e) { /* storage blocked: skip */ } }
+  var RL_NOTICE = 'The ley lines need to rest. The question limit has been reached for now, so please come back later.';
+
   function send(text) {
     text = (text || '').trim(); if (!text || busy || !current) return;
+    if (!rlAllowed()) { bubble('bot', RL_NOTICE); ask.value = ''; return; }
+    rlRecord();
     var id = current; busy = true;
     history[id].push({ role: 'me', text: text }); panel.classList.remove('fresh'); var me = bubble('me', text);
     if (HAS_GSAP && !RM) gsap.from(me, { y: 12, opacity: 0, duration: .4, ease: 'power3.out' });

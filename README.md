@@ -15,6 +15,7 @@ An interactive lore archive for the world of Teyvat (Genshin Impact). It is a co
 - **Full-page chat.** Clicking a node opens a chat for that region. The region and the chosen age are sent to the bot with each question as a hidden context tag, so answers match the place and the time.
 - **Fallback.** If the bot does not answer within 30 seconds, the page shows a built-in sample reply. If it has nothing, it says: "Information not found. The ley lines that carry this record are damaged."
 - **Keyboard and motion.** Nodes and the age slider work with the keyboard, and animations respect the reduced-motion setting.
+- **Question limit.** Each browser can ask 10 questions per rolling 24 hours. It is a soft limit kept in the browser, so it only slows casual use. Real limits belong in Botpress.
 
 ## How it is built
 
@@ -54,6 +55,20 @@ The site is served by GitHub Pages from the `main` branch, root folder. Push to 
 The bot's knowledge base is kept out of this repository on purpose. It lives only in the Botpress workspace and on the maintainer's computer, and it is listed in `.gitignore`, so it is never committed or published here. The repo contains only the front end.
 
 The knowledge base is written in the maintainer's own words from public wiki pages (the Genshin Impact Wiki on Fandom, whose text is licensed CC BY-SA 3.0) and is marked draft. It can be wrong or out of date, so check the wiki or the game for anything that matters.
+
+## Security and privacy
+
+- **Static site.** There is no server, database, login or payment on this site, so most web-app risks do not apply.
+- **Scripts.** GSAP and Lucide are pinned to exact versions and checked with Subresource Integrity. The two Botpress scripts cannot be pinned because Botpress controls them. The unused Tailwind script was removed.
+- **Headers.** GitHub Pages cannot set HTTP headers, so the page uses a content-security meta tag and a small script that stops it being framed by other sites.
+- **No secrets.** The repo has no API keys or tokens. The Botpress bot and client IDs live in Botpress's hosted embed file, not in this repo. Never commit keys.
+- **Chat privacy.** Questions are sent to the bot and processed by Botpress. The page itself sets no tracking or analytics. The page says this in the chat window and footer.
+- **Accounts.** Turn on two-factor authentication for the GitHub and Botpress accounts. That is the main way a site like this gets taken over.
+- **Botpress settings to keep.** The bot should have no connected tools or actions, no secrets in its prompt, a message or rate limit, and a spending alert.
+
+## Credits and attribution
+
+Lore is summarized in the maintainer's own words from the Genshin Impact Wiki on Fandom (text under CC BY-SA 3.0, https://creativecommons.org/licenses/by-sa/3.0/). Fonts: Pirata One and Noto Sans (SIL Open Font License). Libraries: GSAP and Lucide icons.
 
 ## Status
 
