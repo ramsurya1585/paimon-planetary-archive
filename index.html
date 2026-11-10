@@ -1,0 +1,814 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="P.A.I.M.O.N. (Planetary Archive, Irminsul Memory, and Observational Network): an interactive lore constellation with a chat drawer. Fan project, unofficial.">
+<meta name="theme-color" content="#0a1238">
+<title>P.A.I.M.O.N. Planetary Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600&family=Pirata+One&display=swap">
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+<style>
+/* Layout: one full-screen night sky. Six nodes sit at scattered heights around a lens-flare star;
+   a lore chat drawer slides in from the right (bottom sheet on phones). Single dark look by choice. */
+:root {
+  --night: #0a1238;
+  --deep: #16286a;
+  --haze: #4c72c0;
+  --ice: #d6e1ff;
+  --glow: #a9c6ff;
+  --ok: #5fd37a;
+  --ink: #eef3ff;
+  --muted: #93a6d8;
+  --panel: rgba(12, 22, 62, .86);
+  --line: rgba(214, 225, 255, .22);
+  --font-display: 'Pirata One', 'Noto Sans', serif;
+  --font-ui:'Noto Sans', 'HYWenHei', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--night); color: var(--ink);
+  font-family: var(--font-ui); overflow: hidden; -webkit-font-smoothing: antialiased;
+}
+button { font-family: inherit; }
+
+.stage {
+  position: relative; height: 100%; overflow: hidden; isolation: isolate;
+  background:
+    radial-gradient(55% 42% at 50% 16%, rgba(160, 195, 255, .55), transparent 72%),
+    radial-gradient(70% 55% at 18% 52%, rgba(70, 110, 200, .38), transparent 70%),
+    radial-gradient(90% 38% at 50% 108%, rgba(130, 110, 180, .38), transparent 70%),
+    linear-gradient(180deg, #3d5fa8 0%, #263f86 34%, #17296b 70%, #0c1544 100%);
+}
+.layer { position: absolute; inset: 0; pointer-events: none; }
+#stars { width: 100%; height: 100%; display: block; }
+
+/* streaks */
+.streak {
+  position: absolute; height: 1px; transform-origin: 0 50%;
+  background: linear-gradient(90deg, transparent, rgba(220, 232, 255, .5), transparent);
+  opacity: .25;
+}
+
+/* flare */
+.flare { position: absolute; top: -10px; left: 50%; width: max(900px, 62vw); transform: translateX(-50%); }
+.flare svg { display: block; width: 100%; height: auto; overflow: visible; }
+
+/* chrome */
+.chrome {
+  position: absolute; z-index: 20; left: 0; right: 0; top: 0;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding-block: 20px;
+  padding-left: max(24px, env(safe-area-inset-left, 0px));
+  padding-right: max(24px, env(safe-area-inset-right, 0px));
+}
+.brand { display: flex; align-items: center; gap: 14px; font-family: var(--font-display); font-size: 27px; font-weight: 400; letter-spacing: .04em; text-shadow: 0 1px 8px rgba(8, 16, 60, .5); }
+.brand svg { width: 38px; height: 38px; color: var(--ink); filter: drop-shadow(0 0 8px rgba(190, 215, 255, .7)); }
+.close-btn {
+  width: 44px; height: 44px; border-radius: 50%; border: 3px solid rgba(214, 225, 255, .85);
+  background: rgba(60, 80, 130, .55); color: #fff; display: grid; place-items: center; cursor: pointer;
+  box-shadow: 0 2px 12px rgba(8, 16, 60, .4); transition: background .25s, transform .25s;
+}
+.close-btn:hover { background: rgba(110, 140, 210, .7); transform: scale(1.06); }
+.close-btn:focus-visible, .node:focus-visible { outline: none; }
+.close-btn:focus-visible { box-shadow: 0 0 0 3px var(--glow); }
+.close-btn svg { width: 22px; height: 22px; stroke-width: 3; }
+
+.hint {
+  position: absolute; z-index: 5; left: 50%; bottom: max(22px, env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+  font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); white-space: nowrap;
+}
+
+/* nodes */
+.nodes { position: absolute; inset: 0; z-index: 10; }
+.node {
+  position: absolute; left: calc(var(--x) * 100%); top: calc(var(--y) * 100%);
+  width: 0; height: 0; padding: 0; border: 0; background: none; cursor: pointer;
+  color: var(--ice); overflow: visible; -webkit-tap-highlight-color: transparent;
+}
+.node > * { position: absolute; pointer-events: none; }
+.n-hit { pointer-events: auto !important; left: -70px; top: -96px; width: 340px; height: 140px; }
+.n-glow {
+  left: -120px; top: -154px; width: 240px; height: 240px; border-radius: 50%; opacity: 0;
+  background: radial-gradient(circle, rgba(170, 200, 255, .55), rgba(120, 160, 255, .18) 45%, transparent 70%);
+}
+.n-beam {
+  left: -1px; top: -140px; width: 2px; height: 150px; opacity: 0; transform-origin: 50% 70%;
+  background: linear-gradient(180deg, transparent, rgba(220, 235, 255, .95) 55%, transparent);
+}
+.n-ring {
+  left: -44px; top: -78px; width: 88px; height: 88px; border-radius: 50%; opacity: 0;
+  border: 1px solid rgba(235, 242, 255, .75);
+  box-shadow: 0 0 22px rgba(160, 195, 255, .65), inset 0 0 20px rgba(160, 195, 255, .35);
+}
+.n-ring::after {
+  content: ""; position: absolute; inset: -9px; border-radius: 50%;
+  border: 1px solid transparent; border-top-color: rgba(235, 242, 255, .8); border-right-color: rgba(235, 242, 255, .25);
+}
+.n-icon { left: -32px; top: -66px; width: 64px; height: 64px; }
+.n-svg { display: block; width: 100%; height: 100%; opacity: .88; }
+.n-svg svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.n-rule {
+  left: -92px; top: 0; width: 340px; height: 1px; transform-origin: 28% 50%; opacity: .75;
+  background: linear-gradient(90deg, transparent, rgba(220, 230, 255, .6) 22%, rgba(220, 230, 255, .6) 78%, transparent);
+}
+.n-rule::after {
+  content: ""; position: absolute; left: 89px; top: -3px; width: 7px; height: 7px;
+  transform: rotate(45deg); background: rgba(225, 235, 255, .85); box-shadow: 0 0 8px rgba(170, 200, 255, .7);
+}
+.n-tag { left: 46px; top: 32px; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--glow); opacity: .85; white-space: nowrap; }
+.n-tag:empty { display: none; }
+.node { transition: opacity .8s ease, filter .8s ease; }
+.node[data-state="ruin"] { opacity: .8; filter: sepia(.45) saturate(.85); }
+.node[data-state="veiled"] { opacity: .45; filter: saturate(.3); }
+.node[data-state="veiled"]:hover, .node[data-state="veiled"]:focus-visible { opacity: .9; }
+
+/* era tints */
+.tints i { position: absolute; inset: 0; opacity: 0; transition: opacity 1.4s ease; }
+.tints i[data-era="cataclysm"] { background: radial-gradient(80% 60% at 50% 100%, rgba(180, 55, 75, .38), transparent 70%), rgba(90, 20, 40, .16); }
+.tints i[data-era="archonwar"] { background: radial-gradient(80% 60% at 50% 92%, rgba(220, 145, 55, .34), transparent 70%), rgba(120, 70, 20, .14); }
+.tints i[data-era="ancient"] { background: radial-gradient(80% 60% at 50% 92%, rgba(60, 175, 150, .3), transparent 70%), rgba(20, 80, 80, .14); }
+.tints i[data-era="primordial"] { background: radial-gradient(80% 60% at 50% 80%, rgba(145, 95, 215, .36), transparent 70%), rgba(50, 20, 100, .24); }
+.stage[data-era="cataclysm"] .tints i[data-era="cataclysm"],
+.stage[data-era="archonwar"] .tints i[data-era="archonwar"],
+.stage[data-era="ancient"] .tints i[data-era="ancient"],
+.stage[data-era="primordial"] .tints i[data-era="primordial"] { opacity: 1; }
+
+/* chronicle slider */
+.chron {
+  position: absolute; z-index: 12; left: 0; right: 0; margin: 0 auto; width: min(780px, calc(100% - 32px));
+  bottom: max(16px, env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; align-items: center; gap: 12px;
+}
+.era-blurb { margin: 0; min-height: 2.8em; max-width: 560px; text-align: center; font-size: 14px; line-height: 1.5; color: var(--ice); text-shadow: 0 1px 8px rgba(8, 16, 60, .6); }
+.track { position: relative; width: 100%; display: grid; grid-template-columns: repeat(5, 1fr); --p: 1; }
+.track::before, .track::after { content: ""; position: absolute; top: 7px; left: 10%; height: 1px; }
+.track::before { width: 80%; background: rgba(214, 225, 255, .28); }
+.track::after { width: calc(var(--p) * 80%); background: linear-gradient(90deg, rgba(214, 225, 255, .2), rgba(235, 242, 255, .95)); transition: width .9s cubic-bezier(.22, 1, .36, 1); }
+.stop { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 0 2px; background: none; border: 0; color: var(--muted); cursor: pointer; transition: color .3s; }
+.stop .dot { width: 13px; height: 13px; transform: rotate(45deg); border: 1px solid rgba(214, 225, 255, .6); background: #14265e; transition: background .4s, box-shadow .4s, transform .4s; }
+.stop b { font-family: var(--font-display); font-weight: 400; font-size: 20px; letter-spacing: .03em; line-height: 1.1; }
+.stop small { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; opacity: .7; }
+.stop:hover { color: var(--ink); }
+.stop:hover .dot { transform: rotate(45deg) scale(1.2); }
+.stop[aria-checked="true"] { color: #fff; }
+.stop[aria-checked="true"] .dot { background: #fff; box-shadow: 0 0 14px 3px rgba(170, 200, 255, .85); transform: rotate(45deg) scale(1.25); }
+.stop:focus-visible { outline: 2px solid var(--glow); outline-offset: 4px; border-radius: 6px; }
+.p-era { margin-top: 8px; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--glow); }
+.p-era:empty { display: none; }
+@media (max-width: 640px) {
+  .stop small { display: none; }
+  .stop b { font-size: 15px; text-align: center; }
+  .era-blurb { font-size: 12px; min-height: 3em; }
+}
+.n-label { left: 46px; top: -35px; font-family: var(--font-display); font-size: 31px; font-weight: 400; letter-spacing: .04em; line-height: 1.1; white-space: nowrap; color: var(--ice); text-shadow: 0 1px 10px rgba(8, 16, 60, .55); }
+.n-script { left: 46px; top: 10px; opacity: .5; color: var(--ice); white-space: nowrap; }
+.n-script svg { display: block; }
+.n-spark { left: 26px; top: -84px; width: 16px; height: 16px; opacity: 0; color: #fff; filter: drop-shadow(0 0 6px #cfe0ff); }
+
+/* panel */
+.scrim { position: absolute; inset: 0; z-index: 30; background: rgba(6, 12, 40, .5); opacity: 0; pointer-events: none; transition: opacity .5s ease; }
+.scrim.open { opacity: 1; pointer-events: auto; }
+.panel {
+  position: absolute; z-index: 40; top: 0; right: 0; bottom: 0; width: min(440px, 100%);
+  display: flex; flex-direction: column; min-height: 0;
+  background: linear-gradient(180deg, rgba(26, 44, 104, .92), var(--panel));
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  border-left: 1px solid var(--line);
+  transform: translateX(104%); transition: transform .65s cubic-bezier(.22, 1, .36, 1);
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.panel.open { transform: none; }
+.p-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 16px 12px 20px; }
+.switch { display: flex; gap: 6px; flex-wrap: wrap; }
+.sw {
+  width: 36px; height: 36px; border-radius: 12px; border: 1px solid transparent; background: rgba(255, 255, 255, .05);
+  color: var(--muted); display: grid; place-items: center; cursor: pointer; padding: 5px; transition: background .25s, color .25s, border-color .25s;
+}
+.sw svg { width: 100%; height: 100%; }
+.sw:hover { color: #fff; background: rgba(160, 195, 255, .18); }
+.sw[aria-current="true"] { color: #fff; border-color: rgba(190, 215, 255, .6); background: rgba(160, 195, 255, .22); }
+.sw:focus-visible, .chip:focus-visible, .send:focus-visible, .p-close:focus-visible { outline: 2px solid var(--glow); outline-offset: 2px; }
+.p-close { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--line); background: transparent; color: var(--ink); display: grid; place-items: center; cursor: pointer; flex: none; }
+.p-close:hover { background: rgba(255, 255, 255, .1); }
+.p-close svg { width: 18px; height: 18px; }
+.p-title { padding: 4px 20px 14px; border-bottom: 1px solid var(--line); }
+.p-title h2 { margin: 0; font-family: var(--font-display); font-size: 36px; font-weight: 400; letter-spacing: .04em; line-height: 1.1; }
+.p-title .scr { color: var(--ice); opacity: .55; margin-top: 6px; }
+.msgs { flex: 1; min-height: 0; overflow-y: auto; padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; scroll-behavior: smooth; }
+.msg { max-width: 88%; font-size: 15px; line-height: 1.6; padding: 11px 15px; border-radius: 16px; overflow-wrap: anywhere; }
+.msg.bot { align-self: flex-start; background: rgba(214, 225, 255, .1); border: 1px solid var(--line); border-top-left-radius: 5px; }
+.msg.me { align-self: flex-end; background: linear-gradient(135deg, #7da2f0, #5878c8); color: #fff; border-top-right-radius: 5px; }
+.typing { display: inline-flex; gap: 5px; padding: 4px 0; }
+.typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--ice); opacity: .4; animation: dot 1s infinite; }
+.typing i:nth-child(2) { animation-delay: .15s; } .typing i:nth-child(3) { animation-delay: .3s; }
+@keyframes dot { 0%, 100% { opacity: .25; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-3px); } }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 20px 12px; }
+.chip {
+  border: 1px solid var(--line); background: rgba(255, 255, 255, .05); color: var(--ice); border-radius: 999px;
+  padding: 7px 14px; font-family: var(--font-display); font-size: 17px; letter-spacing: .03em; cursor: pointer; transition: background .25s, border-color .25s, transform .25s;
+}
+.chip:hover { background: rgba(160, 195, 255, .2); border-color: rgba(190, 215, 255, .6); transform: translateY(-1px); }
+.composer { display: flex; gap: 10px; padding: 4px 16px 8px 20px; }
+.composer input {
+  flex: 1; min-width: 0; height: 46px; border-radius: 23px; border: 1px solid var(--line);
+  background: rgba(6, 12, 40, .5); color: var(--ink); padding: 0 18px; font: inherit; font-size: 15px;
+}
+.composer input::placeholder { color: var(--muted); }
+.composer input:focus { outline: none; border-color: var(--glow); box-shadow: 0 0 0 3px rgba(169, 198, 255, .25); }
+.send { width: 46px; height: 46px; border-radius: 50%; border: 0; background: linear-gradient(135deg, #9dbcff, #6b8ee0); color: #0a1238; display: grid; place-items: center; cursor: pointer; flex: none; transition: transform .25s; }
+.send:hover { transform: scale(1.07); }
+.send svg { width: 20px; height: 20px; }
+.note { padding: 2px 20px 14px; font-size: 11px; letter-spacing: .06em; color: var(--muted); }
+
+@media (max-width: 640px) {
+  .node { left: calc(var(--mx) * 100%); top: calc(var(--my) * 100%); }
+  .n-label { font-size: 26px; left: 42px; top: -32px; }
+  .n-rule { width: 250px; }
+  .n-hit { width: 250px; }
+  .brand { font-size: 22px; }
+  .hint { font-size: 10px; bottom: max(14px, env(safe-area-inset-bottom, 0px)); }
+  .panel { top: auto; left: 0; width: 100%; height: 82%; border-left: 0; border-top: 1px solid var(--line); border-radius: 22px 22px 0 0; transform: translateY(104%); }
+  .panel.open { transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .panel { transition-duration: .01s; }
+  .scrim { transition-duration: .01s; }
+  .msgs { scroll-behavior: auto; }
+  .typing i { animation: none; opacity: .7; }
+}
+</style>
+
+<main class="stage" id="stage">
+  <div class="layer tints" aria-hidden="true"><i data-era="cataclysm"></i><i data-era="archonwar"></i><i data-era="ancient"></i><i data-era="primordial"></i></div>
+  <div class="layer" id="streaks" aria-hidden="true"></div>
+  <div class="layer" aria-hidden="true"><canvas id="stars"></canvas></div>
+
+  <div class="layer" id="flareWrap" aria-hidden="true">
+    <div class="flare" id="flare">
+      <svg viewBox="0 0 1200 760">
+        <defs>
+          <linearGradient id="gH" x1="0" x2="1" y1="0" y2="0">
+            <stop offset="0" stop-color="#cfe0ff" stop-opacity="0" />
+            <stop offset=".5" stop-color="#ffffff" stop-opacity="1" />
+            <stop offset="1" stop-color="#cfe0ff" stop-opacity="0" />
+          </linearGradient>
+          <linearGradient id="gV" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0" stop-color="#cfe0ff" stop-opacity=".1" />
+            <stop offset=".22" stop-color="#ffffff" stop-opacity="1" />
+            <stop offset="1" stop-color="#9fbcff" stop-opacity="0" />
+          </linearGradient>
+          <linearGradient id="gRing" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0" stop-color="#fff" stop-opacity=".05" />
+            <stop offset=".6" stop-color="#cfe0ff" stop-opacity=".18" />
+            <stop offset=".9" stop-color="#ffd9e8" stop-opacity=".55" />
+            <stop offset="1" stop-color="#bfe9ff" stop-opacity=".75" />
+          </linearGradient>
+          <radialGradient id="gCore">
+            <stop offset="0" stop-color="#fff" stop-opacity="1" />
+            <stop offset=".25" stop-color="#e4eeff" stop-opacity=".85" />
+            <stop offset="1" stop-color="#8fb0ff" stop-opacity="0" />
+          </radialGradient>
+          <filter id="soft"><feGaussianBlur stdDeviation="6" /></filter>
+        </defs>
+        <circle id="ring" cx="600" cy="150" r="420" fill="none" stroke="url(#gRing)" stroke-width="2.5" />
+        <circle cx="600" cy="150" r="436" fill="none" stroke="#fff" stroke-opacity=".07" stroke-width="1" />
+        <g id="spikes" style="transform-origin: 600px 150px; transform-box: view-box;">
+          <polygon points="600,-90 614,150 600,560 586,150" fill="#050a26" opacity=".45" filter="url(#soft)" />
+          <polygon points="250,150 600,134 950,150 600,166" fill="#050a26" opacity=".4" filter="url(#soft)" />
+          <polygon points="600,-70 610,150 600,520 590,150" fill="url(#gV)" />
+          <polygon points="300,150 600,138 900,150 600,162" fill="url(#gH)" />
+          <g opacity=".5" transform="rotate(45 600 150)">
+            <polygon points="480,150 600,144 720,150 600,156" fill="url(#gH)" />
+          </g>
+          <g opacity=".5" transform="rotate(-45 600 150)">
+            <polygon points="480,150 600,144 720,150 600,156" fill="url(#gH)" />
+          </g>
+        </g>
+        <circle id="core" cx="600" cy="150" r="70" fill="url(#gCore)" />
+      </svg>
+    </div>
+  </div>
+
+  <header class="chrome" id="chrome">
+    <div class="brand">
+      <svg viewBox="0 0 48 48" fill="currentColor" aria-hidden="true"><path d="M24 2 L27 21 L46 24 L27 27 L24 46 L21 27 L2 24 L21 21Z" /><path opacity=".6" d="M24 12 L25.6 22.4 L36 24 L25.6 25.6 L24 36 L22.4 25.6 L12 24 L22.4 22.4Z" fill="#16286a" /></svg>
+      <span>Starlit Archive</span>
+    </div>
+    <button class="close-btn" id="mainClose" aria-label="Close"><i data-lucide="x"></i></button>
+  </header>
+
+  <nav class="nodes" id="nodes" aria-label="Regions of lore"></nav>
+  <section class="chron" id="chron" aria-label="Chronicle: choose an age">
+    <p class="era-blurb" id="eraBlurb"></p>
+    <div class="track" id="track" role="radiogroup" aria-label="Age of Teyvat"></div>
+  </section>
+
+  <div class="scrim" id="scrim"></div>
+
+  <aside class="panel" id="panel" role="dialog" aria-modal="true" aria-labelledby="pTitle" aria-hidden="true" inert>
+    <div class="p-head">
+      <div class="switch" id="switch" role="group" aria-label="Switch region"></div>
+      <button class="p-close" id="pClose" aria-label="Close chat"><i data-lucide="x"></i></button>
+    </div>
+    <div class="p-title">
+      <h2 id="pTitle">Region</h2>
+      <div class="scr" id="pScript"></div>
+      <div class="p-era" id="pEra"></div>
+    </div>
+    <div class="msgs" id="msgs" aria-live="polite"></div>
+    <div class="chips" id="chips"></div>
+    <form class="composer" id="composer" autocomplete="off">
+      <input id="ask" type="text" placeholder="Ask the archive anything…" aria-label="Your question" />
+      <button class="send" type="submit" aria-label="Send"><i data-lucide="send-horizontal"></i></button>
+    </form>
+    <div class="note">Sample replies only. Draft lore, not yet checked against the wiki. The bot is not connected. Fan project, unofficial.</div>
+  </aside>
+</main>
+
+<script>
+(function () {
+  var RM = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var HAS_GSAP = !!window.gsap;
+
+  /* ---------- in-world script (procedural glyphs) ---------- */
+  function rng(str) {
+    var h = 1779033703 ^ str.length;
+    for (var i = 0; i < str.length; i++) { h = Math.imul(h ^ str.charCodeAt(i), 3432918353); h = (h << 13) | (h >>> 19); }
+    return function () {
+      h = Math.imul(h ^ (h >>> 16), 2246822507); h = Math.imul(h ^ (h >>> 13), 3266489909); h ^= h >>> 16;
+      return (h >>> 0) / 4294967296;
+    };
+  }
+  function glyphs(text, height) {
+    var r = rng(text), W = 10, H = 14, G = 5, d = '';
+    var pts = [];
+    for (var y = 0; y < 3; y++) for (var x = 0; x < 3; x++) pts.push([x * W / 2, y * H / 2]);
+    for (var i = 0; i < text.length; i++) {
+      var ox = i * (W + G), cur = Math.floor(r() * 9), n = 2 + Math.floor(r() * 3);
+      d += 'M' + (ox + pts[cur][0]) + ' ' + pts[cur][1];
+      for (var s = 0; s < n; s++) {
+        var nx; do { nx = Math.floor(r() * 9); } while (nx === cur);
+        d += 'L' + (ox + pts[nx][0]) + ' ' + pts[nx][1]; cur = nx;
+      }
+    }
+    var w = text.length * (W + G);
+    height = height || 12;
+    return '<svg viewBox="-3 -2 ' + (w + 6) + ' ' + (H + 4) + '" width="' + ((w + 6) * height / (H + 4)) + '" height="' + height + '" aria-hidden="true"><path d="' + d + '" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" transform="skewX(-14)"/></svg>';
+  }
+
+  /* ---------- emblems (original line art) ---------- */
+  function star8() {
+    var p = [];
+    for (var i = 0; i < 16; i++) { var a = Math.PI * i / 8 - Math.PI / 2, rr = i % 2 ? 15 : 29; p.push((32 + rr * Math.cos(a)).toFixed(1) + ',' + (32 + rr * Math.sin(a)).toFixed(1)); }
+    return p.join(' ');
+  }
+  var petals = '';
+  for (var pi = 0; pi < 6; pi++) petals += '<path d="M32 31 C25 22 26 10 32 5 C38 10 39 22 32 31Z" transform="rotate(' + pi * 60 + ' 32 32)"/>';
+  var EMB = {
+    mondstadt: '<g fill="currentColor">' + petals + '<circle cx="32" cy="32" r="4" fill="#16286a"/><path d="M18 54 Q32 62 46 54 Q32 58 18 54Z"/></g>',
+    liyue: '<g fill="currentColor" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M32 11 V51 M12 22 H52 M14 22 L8 41 M14 22 L20 41 M50 22 L44 41 M50 22 L56 41 M22 56 H42" fill="none" stroke-width="2.6"/><path d="M5 41 H23 L14 49Z M41 41 H59 L50 49Z" stroke-width="1"/><circle cx="32" cy="9" r="4" stroke="none"/></g>',
+    inazuma: '<g fill="currentColor"><path d="M6 14 Q32 22 58 14 L55 21 Q32 27 9 21Z"/><rect x="13" y="28" width="38" height="4" rx="1"/><rect x="17" y="21" width="5" height="34" rx="1"/><rect x="42" y="21" width="5" height="34" rx="1"/><circle cx="32" cy="44" r="7.5" fill="none" stroke="currentColor" stroke-width="2.4"/><circle cx="32" cy="41.5" r="2.6"/></g>',
+    sumeru: '<g fill="currentColor"><circle cx="32" cy="20" r="12"/><circle cx="19" cy="31" r="9"/><circle cx="45" cy="31" r="9"/><circle cx="32" cy="33" r="9"/><path d="M29.5 38 h5 v15 h-5z"/><path d="M32 53 q-9 1 -16 8 M32 53 q9 1 16 8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><circle cx="32" cy="22" r="4.5" fill="none" stroke="#16286a" stroke-width="1.6"/></g>',
+    natlan: '<g><polygon points="' + star8() + '" fill="currentColor"/><circle cx="32" cy="32" r="11" fill="#16286a"/><path d="M32 23 L40 37 H24Z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/></g>',
+    nodkrai: '<g fill="currentColor"><path d="M38 6 a26 26 0 1 0 0 52 a20 20 0 1 1 0 -52Z"/><path d="M46 20 L48 29 L57 31 L48 33 L46 42 L44 33 L35 31 L44 29Z"/><path d="M14 60 H50" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" fill="none"/></g>',
+    fontaine: '<g fill="currentColor"><path d="M32 5 C44 21 50 29 50 38 a18 18 0 0 1 -36 0 C14 29 20 21 32 5Z"/><path d="M24 40 a9 9 0 0 0 9 9" fill="none" stroke="#16286a" stroke-width="2.6" stroke-linecap="round"/><path d="M10 57 Q21 62 32 57 T54 57" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></g>',
+    snezhnaya: '<g fill="currentColor"><path d="M32 8 V15 M32 15 C21 25 21 33 26 39 H38 C43 33 43 25 32 15Z" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M13 27 C7 33 7 38 10 43 H16 C19 38 19 33 13 27Z"/><path d="M51 27 C45 33 45 38 48 43 H54 C57 38 57 33 51 27Z"/><path d="M7 56 V45 H57 V56Z"/><path d="M20 56 V51 a4 4 0 0 1 8 0 V56 M36 56 V51 a4 4 0 0 1 8 0 V56" fill="#16286a"/></g>'
+  };
+  function emblem(id) { return '<svg viewBox="0 0 64 64" aria-hidden="true">' + EMB[id] + '</svg>'; }
+
+  /* ---------- lore data (sample copy) ---------- */
+  var REGIONS = [
+    {
+      id: 'snezhnaya', name: 'Snezhnaya', x: .29, y: .30, mx: .14, my: .24,
+      intro: 'Snezhnaya lies far in the frozen north of Teyvat. Its long winters and closed borders keep most of its story hidden.',
+      qa: [
+        { q: 'Who is the Tsaritsa?', k: ['tsaritsa', 'ruler', 'cryo', 'archon'], a: 'The Tsaritsa is the Cryo Archon and the ruler of Snezhnaya. She leads the Fatui, the organization that acts in her name across the continent.' },
+        { q: 'What are the Harbingers?', k: ['harbinger', 'fatui'], a: 'The Fatui Harbingers are the Tsaritsa\'s most senior agents. Each commands their own resources and answers directly to her.' },
+        { q: 'What is Snezhnaya like?', k: ['like', 'cold', 'winter', 'land'], a: 'A cold northern nation of long winters. Little is shared with outsiders, so most of what travelers know comes from rumor.' }
+      ]
+    },
+    {
+      id: 'mondstadt', name: 'Mondstadt', x: .68, y: .36, mx: .46, my: .33,
+      intro: 'Mondstadt is the City of Freedom, on the north-west coast of Teyvat. It is known for its winds, its wine, and its dislike of rulers.',
+      qa: [
+        { q: 'Who rules Mondstadt?', k: ['rule', 'archon', 'barbatos', 'venti', 'knights'], a: 'No one rules it. The Anemo Archon Barbatos freed the people from a tyrant long ago and then stepped back. Today the Knights of Favonius look after the city.' },
+        { q: 'Tell me about Dvalin', k: ['dvalin', 'stormterror', 'dragon'], a: 'Dvalin, the Dragon of the East Wind, was one of the Four Winds that guarded Mondstadt. After he was corrupted, people came to know him as Stormterror.' },
+        { q: 'What is Mondstadt known for?', k: ['known', 'wine', 'wind', 'culture'], a: 'Wine, wind and song. The city lives on cider, grapes and a love of freedom, and its bards carry old stories from street to street.' }
+      ]
+    },
+    {
+      id: 'natlan', name: 'Natlan', x: .13, y: .57, mx: .14, my: .43,
+      intro: 'Natlan is the land of Pyro, where six tribes live with the memory of war and a cycle of death and return.',
+      qa: [
+        { q: 'Who are the six tribes?', k: ['tribe', 'six', 'clan'], a: 'The Flower-Feather Clan, the Masters of the Night-Wind, the Scions of the Canopy, the Children of Echoes, the People of the Springs, and the Collective of Plenty.' },
+        { q: 'What is Natlan?', k: ['what', 'natlan', 'land', 'pyro'], a: 'A nation of fire and battle. Its people treat conflict as part of life, and they honor the dead as part of a long cycle.' },
+        { q: 'Who is its Archon?', k: ['archon', 'mavuika', 'ruler'], a: 'Mavuika is the Pyro Archon of Natlan, and the tribes look to her in their long struggle.' }
+      ]
+    },
+    {
+      id: 'sumeru', name: 'Sumeru', x: .36, y: .66, mx: .44, my: .52,
+      intro: 'Sumeru is the nation of wisdom, split between deep rainforest and wide desert, with scholars at its center.',
+      qa: [
+        { q: 'Who is Nahida?', k: ['nahida', 'kusanali', 'archon', 'dendro'], a: 'Nahida, also called Lesser Lord Kusanali, is the Dendro Archon and the god of wisdom. For a long time she was kept apart from her people by those who ran Sumeru.' },
+        { q: 'What is the Akademiya?', k: ['akademiya', 'academy', 'scholar', 'darshan'], a: 'Sumeru\'s great institution of learning. Its scholars are organized into Darshans, and it holds much of the nation\'s power.' },
+        { q: 'What is the Akasha?', k: ['akasha', 'knowledge', 'network'], a: 'A system built to share knowledge across Sumeru. Many people used it every day without knowing how much depended on it.' }
+      ]
+    },
+    {
+      id: 'liyue', name: 'Liyue', x: .54, y: .59, mx: .14, my: .62,
+      intro: 'Liyue is the nation of contracts, built around a busy harbor on the east coast and guarded by mountain adepti.',
+      qa: [
+        { q: 'Who is Rex Lapis?', k: ['rex', 'lapis', 'morax', 'zhongli', 'archon', 'geo'], a: 'Rex Lapis is the name Morax, the Geo Archon, used while leading Liyue. His rule rested on contracts, and the city later passed into the hands of its people.' },
+        { q: 'What are the Qixing?', k: ['qixing', 'council', 'govern'], a: 'The Liyue Qixing are the seven-member body that runs the harbor, its trade and its government.' },
+        { q: 'Who are the adepti?', k: ['adepti', 'adeptus', 'immortal'], a: 'Ancient, long-lived beings who watch over Liyue from the mountains. Many of them are bound by old contracts with Rex Lapis.' }
+      ]
+    },
+    {
+      id: 'inazuma', name: 'Inazuma', x: .79, y: .70, mx: .46, my: .72,
+      intro: 'Inazuma is an island nation of thunder, ruled by an Archon who seeks Eternity.',
+      qa: [
+        { q: 'Who is the Electro Archon?', k: ['archon', 'electro', 'baal', 'shogun', 'ei', 'raiden'], a: 'Baal, known as the Raiden Shogun. She seeks Eternity, a world that never changes, and a puppet governs in her place while she remains in seclusion.' },
+        { q: 'What was the Vision Hunt Decree?', k: ['vision', 'hunt'], a: 'An order to take Visions from the people of Inazuma, issued in service of the Shogun\'s goal of preventing change and loss.' },
+        { q: 'Tell me about the Sakoku Decree', k: ['sakoku', 'isolation', 'closed'], a: 'A national order that closed Inazuma\'s borders to outside travel and trade.' }
+      ]
+    },
+    {
+      id: 'fontaine', name: 'Fontaine', x: .50, y: .85, mx: .16, my: .82,
+      intro: 'Fontaine is the nation of justice, a land of water, theatre and courtrooms where every trial is a public spectacle.',
+      qa: [
+        { q: 'Who is the Hydro Archon?', k: ['archon', 'hydro', 'focalors', 'furina', 'ruler'], a: 'The people of Fontaine have long looked to the Hydro Archon, Focalors, as the source of justice. Furina has played the part of the Archon in public for years.' },
+        { q: 'What is the prophecy?', k: ['prophecy', 'seawater', 'primordial', 'dissolve'], a: 'An old prophecy says the people of Fontaine will one day dissolve in Primordial Seawater. It hangs over the nation\'s history.' },
+        { q: 'How do trials work?', k: ['trial', 'court', 'justice', 'law', 'opera'], a: 'Trials are held at the Opera Epiclese, where the judging is open to the audience and treated as a grand public performance.' }
+      ]
+    }
+  ];
+  /* Draft era and ruins lore. Each era entry is [state, tag, text]. Verify against the wiki before relying on it. */
+  var epoch = 'modern';
+  var VEIL = ['veiled', 'Records unclear', 'The archive holds no reliable record of this region in this age yet.'];
+  var EXTRA = {
+    mondstadt: {
+      ruins: 'Stormterror’s Lair, the wilds around Dragonspine and scattered old structures hold remnants of Mondstadt’s earlier ages, from the time of the tyrant and the dragons.',
+      eras: {
+        cataclysm: ['present', 'Free city', 'Mondstadt was already a free city. News of Khaenri’ah’s destruction and the Abyss it left behind was felt across all of Teyvat.'],
+        archonwar: ['present', 'Under Decarabian', 'Mondstadt lay under the tyrant Decarabian, who ruled with storms and cold. The people had no freedom until Barbatos helped them rise against him.'],
+        ancient: ['veiled', 'Early settlements', 'Before the city of freedom, these lands held scattered early settlements. Little is recorded, and the tales of dragons and wolves are older still.'],
+        primordial: ['veiled', 'Unnamed land', 'There was no Mondstadt yet. The north-west was shaped by wind and old dragons long before any city.']
+      }
+    },
+    liyue: {
+      ruins: 'The Dunyu Ruins and other ruins in the mountains remain from the Archon War and earlier. The Chasm also hides old workings below the ground.',
+      eras: {
+        cataclysm: ['present', 'Harbor trade', 'Liyue Harbor thrived under Rex Lapis as a nation of trade and contracts.'],
+        archonwar: ['present', 'Rex Lapis rises', 'Morax fought in the Archon War, defeated rivals, and built Liyue around contracts.'],
+        ancient: ['veiled', 'Before contracts', 'Before Morax, the mountains and coast saw early settlement and the first adepti. Records from this age are thin.'],
+        primordial: ['veiled', 'Unnamed land', 'There was no Liyue yet, only stone, mountain and sea.']
+      }
+    },
+    inazuma: {
+      ruins: 'Enkanomiya is the best known: an ancient hidden realm tied to Inazuma whose ruins hold records of an older age. Wrecks of the Archon War also lie along the coasts.',
+      eras: {
+        cataclysm: ['present', 'Shogun’s rule', 'Inazuma was under the Electro Archon, and the upheaval of the age pushed the nation toward isolation.'],
+        archonwar: ['present', 'War-torn islands', 'The Archon War reached the islands. The Electro Archon’s rule was born from conflict among gods and monsters.'],
+        ancient: ['ruin', 'Enkanomiya', 'Enkanomiya is an ancient realm tied to Inazuma. Its ruins hold much of the older history of the region.'],
+        primordial: ['veiled', 'Unnamed land', 'There was no Inazuma yet. The islands and the sea around them were still unnamed.']
+      }
+    },
+    sumeru: {
+      ruins: 'Gurabad and the Desert of Hadramaveth hold ancient ruins, and the rainforest hides old structures beneath its roots.',
+      eras: {
+        cataclysm: ['present', 'Scholars’ land', 'Sumeru remained a land of scholars, rainforest and desert peoples under the god of wisdom.'],
+        archonwar: ['present', 'Rukkhadevata', 'Sumeru was ruled by Greater Lord Rukkhadevata, the earlier Dendro Archon, whose wisdom guided the rainforest nation.'],
+        ancient: ['ruin', 'Gurabad', 'In the desert, the ruins of Gurabad stand from an older age. Little of its people is left except stone.'],
+        primordial: ['veiled', 'Unnamed land', 'There was no Sumeru yet. Forest and sand stretched across the land without a name.']
+      }
+    },
+    natlan: {
+      ruins: 'Old tribal ruins and battle sites from the Archon War lie across the land, and the tribes still honor many of them.',
+      eras: {
+        cataclysm: ['present', 'Tribes endure', 'Natlan’s tribes carried on their fighting and their rites under the Pyro Archon.'],
+        archonwar: ['present', 'Land of battle', 'Natlan was a land of war. A former Pyro Archon fell in the Archon War, and the tribes inherited a long habit of fighting.'],
+        ancient: ['ruin', 'Older tribes', 'Before the Archons, older tribes lived in Natlan. Their ruins are scattered across the land.'],
+        primordial: ['veiled', 'Unnamed land', 'There was no Natlan yet, only fire, stone and open land.']
+      }
+    },
+    snezhnaya: {
+      ruins: 'Few ruins are publicly known. The Fatui guard what exists.',
+      eras: {
+        cataclysm: ['present', 'Frozen north', 'The Tsaritsa already ruled the frozen north.'],
+        archonwar: ['present', 'Cryo Archon', 'The Tsaritsa was already a god of the north. Few records say what she did in the war.'],
+        ancient: ['veiled', 'Records lost', 'Almost nothing survives from this age in the far north.'],
+        primordial: ['veiled', 'Unnamed land', 'There was no Snezhnaya yet, only ice.']
+      }
+    },
+    fontaine: {
+      ruins: 'Ruins are rare above the surface, but old structures lie beneath the waters of Fontaine.',
+      eras: {
+        cataclysm: ['present', 'Court and stage', 'Fontaine was a nation of water and justice under the Hydro Archon.'],
+        archonwar: ['present', 'Egeria’s waters', 'Before Focalors, the Hydro Archon Egeria watched over the waters of Fontaine.'],
+        ancient: ['ruin', 'Drowned ruins', 'Beneath the seas and rivers, older structures lie drowned, left from before the Archons.'],
+        primordial: ['veiled', 'Unnamed land', 'There was no Fontaine yet, only open water and shore.']
+      }
+    },
+    nodkrai: {
+      ruins: 'Ruin lore for Nod-Krai is not in the archive yet.',
+      eras: { cataclysm: VEIL, archonwar: VEIL, ancient: VEIL, primordial: VEIL }
+    }
+  };
+  REGIONS.push({
+    id: 'nodkrai', name: 'Nod-Krai',
+    intro: 'Nod-Krai is the newest region on the map. Its lore is still being added to the archive.',
+    qa: [
+      { q: 'What is Nod-Krai?', k: ['what', 'nod', 'krai', 'region'], a: 'Nod-Krai is the newest region on the map. Its lore is still being added to the archive.' },
+      { q: 'Who rules it?', k: ['rule', 'archon', 'who'], a: 'The archive does not have a verified answer yet.' }
+    ]
+  });
+  var POS = {
+    snezhnaya: [.29, .30, .14, .22], mondstadt: [.68, .36, .46, .30], natlan: [.13, .57, .14, .38], sumeru: [.36, .66, .44, .46],
+    liyue: [.54, .59, .14, .54], inazuma: [.79, .70, .46, .62], fontaine: [.22, .78, .14, .70], nodkrai: [.78, .50, .44, .78]
+  };
+  REGIONS.forEach(function (r) {
+    var x = EXTRA[r.id], p = POS[r.id];
+    r.eras = x.eras; r.ruins = x.ruins; r.x = p[0]; r.y = p[1]; r.mx = p[2]; r.my = p[3];
+  });
+  var BY = {}; REGIONS.forEach(function (r) { BY[r.id] = r; });
+  var FALLBACK = 'I can only give sample answers for now. Try one of the suggested questions while the real archive is being built.';
+
+  /* Swap this function for a real call to the lore bot later. */
+  function askLore(regionId, text) {
+    return new Promise(function (resolve) {
+      var t = text.toLowerCase(), r = BY[regionId], hit = null, over = null;
+      if (/ruin|remains|relic/.test(t)) over = r.ruins;
+      else if (epoch !== 'modern' && /\bthen\b|\bpast\b|this era|this age/.test(t)) over = r.eras[epoch][2];
+      r.qa.forEach(function (e) { if (!hit && e.k.some(function (w) { return t.indexOf(w) > -1; })) hit = e; });
+      setTimeout(function () { resolve(over || (hit ? hit.a : FALLBACK)); }, RM ? 50 : 900 + Math.random() * 500);
+    });
+  }
+
+  /* ---------- build nodes ---------- */
+  var nodesEl = document.getElementById('nodes');
+  REGIONS.forEach(function (r) {
+    var b = document.createElement('button');
+    b.className = 'node'; b.type = 'button'; b.dataset.id = r.id;
+    b.style.setProperty('--x', r.x); b.style.setProperty('--y', r.y);
+    b.style.setProperty('--mx', r.mx); b.style.setProperty('--my', r.my);
+    b.dataset.state = 'present';
+    b.setAttribute('aria-label', 'Ask about ' + r.name);
+    b.innerHTML =
+      '<span class="n-hit"></span><span class="n-glow"></span><span class="n-beam"></span><span class="n-ring"></span>' +
+      '<span class="n-icon"><span class="n-svg">' + emblem(r.id) + '</span></span>' +
+      '<span class="n-rule"></span>' +
+      '<span class="n-label">' + r.name + '</span>' +
+      '<span class="n-script">' + glyphs(r.name + 'x', 12) + '</span><span class="n-tag"></span>' +
+      '<span class="n-spark"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0 L9.4 6.6 L16 8 L9.4 9.4 L8 16 L6.6 9.4 L0 8 L6.6 6.6Z"/></svg></span>';
+    nodesEl.appendChild(b);
+  });
+  if (window.lucide) lucide.createIcons();
+
+  /* ---------- hover / focus animation ---------- */
+  var nodeEls = Array.prototype.slice.call(document.querySelectorAll('.node'));
+  if (HAS_GSAP) {
+    nodeEls.forEach(function (n) {
+      var q = function (s) { return n.querySelector(s); };
+      var glow = q('.n-glow'), ring = q('.n-ring'), beam = q('.n-beam'), svg = q('.n-svg'),
+          spark = q('.n-spark'), label = q('.n-label'), script = q('.n-script'), rule = q('.n-rule');
+      gsap.set(glow, { opacity: 0, scale: .6 });
+      gsap.set(svg, { filter: 'brightness(1) drop-shadow(0 0 0px rgba(170,200,255,0))' });
+      var tl = gsap.timeline({ paused: true, defaults: { ease: 'power3.out' } });
+      tl.to(glow, { opacity: 1, scale: 1, duration: .6 }, 0)
+        .fromTo(ring, { scale: .55, opacity: 0, rotate: -50 }, { scale: 1, opacity: 1, rotate: 0, duration: .7, ease: 'back.out(1.7)' }, 0)
+        .fromTo(beam, { scaleY: 0, opacity: 0 }, { scaleY: 1, opacity: 1, duration: .55 }, .05)
+        .to(svg, { scale: 1.1, opacity: 1, filter: 'brightness(1.7) drop-shadow(0 0 12px rgba(175,205,255,.95))', color: '#fff', duration: .45 }, 0)
+        .fromTo(spark, { scale: 0, rotate: -120, opacity: 0 }, { scale: 1, rotate: 0, opacity: 1, duration: .6, ease: 'back.out(2.4)' }, .12)
+        .to(label, { color: '#ffffff', x: 4, duration: .35 }, 0)
+        .to(script, { opacity: .95, x: 4, duration: .35 }, .03)
+        .to(rule, { opacity: 1, duration: .35 }, 0);
+      if (RM) tl.timeScale(60);
+      var on = function () { tl.timeScale(RM ? 60 : 1).play(); };
+      var off = function () { tl.timeScale(RM ? 60 : 1.5).reverse(); };
+      n.addEventListener('mouseenter', on); n.addEventListener('mouseleave', off);
+      n.addEventListener('focus', on); n.addEventListener('blur', off);
+      n._tl = tl;
+    });
+  } else {
+    var st = document.createElement('style');
+    st.textContent = '.node:hover .n-ring,.node:focus-visible .n-ring,.node:hover .n-glow,.node:focus-visible .n-glow{opacity:1}';
+    document.head.appendChild(st);
+  }
+
+  /* ---------- star particles ---------- */
+  var cv = document.getElementById('stars'), cx = cv.getContext('2d'), stars = [], W = 0, H = 0, DPR = Math.min(window.devicePixelRatio || 1, 2);
+  function sizeCanvas() {
+    var st = document.getElementById('stage');
+    W = st.clientWidth; H = st.clientHeight; cv.width = W * DPR; cv.height = H * DPR; cx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    var count = Math.round(Math.min(160, W * H / 9000));
+    stars = [];
+    for (var i = 0; i < count; i++) stars.push({ x: Math.random() * W, y: Math.random() * H * .92, r: Math.random() * 1.5 + .3, p: Math.random() * 6.28, s: .4 + Math.random() * 1.2, d: (Math.random() - .5) * .04 });
+  }
+  function draw(t) {
+    cx.clearRect(0, 0, W, H);
+    for (var i = 0; i < stars.length; i++) {
+      var s = stars[i], a = RM ? .6 : .25 + .75 * (.5 + .5 * Math.sin(t / 1000 * s.s + s.p));
+      if (!RM) { s.x += s.d; if (s.x < -2) s.x = W + 2; if (s.x > W + 2) s.x = -2; }
+      cx.globalAlpha = a * (s.y < H * .5 ? 1 : .8);
+      cx.fillStyle = '#eaf1ff'; cx.beginPath(); cx.arc(s.x, s.y, s.r, 0, 6.283); cx.fill();
+      if (s.r > 1.2) { cx.globalAlpha = a * .35; cx.fillRect(s.x - 4, s.y - .4, 8, .8); cx.fillRect(s.x - .4, s.y - 4, .8, 8); }
+    }
+    cx.globalAlpha = 1;
+    if (!RM) requestAnimationFrame(draw);
+  }
+  sizeCanvas(); requestAnimationFrame(draw);
+  window.addEventListener('resize', function () { sizeCanvas(); if (RM) requestAnimationFrame(draw); });
+
+  /* ---------- light streaks ---------- */
+  var streakWrap = document.getElementById('streaks');
+  var streaks = [
+    [8, 62, -24, 380], [22, 74, -28, 300], [34, 30, 58, 260], [62, 70, 62, 340], [70, 38, 70, 280],
+    [86, 82, -26, 360], [48, 85, 82, 300], [14, 36, -20, 260]
+  ];
+  streaks.forEach(function (s) {
+    var d = document.createElement('div'); d.className = 'streak';
+    d.style.left = s[0] + '%'; d.style.top = s[1] + '%'; d.style.width = s[3] + 'px'; d.style.transform = 'rotate(' + s[2] + 'deg)';
+    streakWrap.appendChild(d);
+    if (HAS_GSAP && !RM) gsap.to(d, { opacity: .6, duration: 2.5 + Math.random() * 3, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: Math.random() * 3 });
+  });
+
+  /* ---------- intro sequence and ambient motion ---------- */
+  if (HAS_GSAP && !RM) {
+    var intro = gsap.timeline({ defaults: { ease: 'power3.out' } });
+    intro.from('#core', { scale: 0, transformOrigin: '600px 150px', duration: 1.2, ease: 'expo.out' }, 0)
+      .from('#spikes', { scaleX: .1, scaleY: .1, opacity: 0, duration: 1.6, ease: 'expo.out' }, .1)
+      .from('#ring', { opacity: 0, scale: .85, transformOrigin: '600px 150px', duration: 1.8 }, .2)
+      .from('.brand, .close-btn', { y: -16, opacity: 0, duration: .8, stagger: .12 }, .5)
+      .from('.n-icon', { y: 22, scale: .6, opacity: 0, duration: .9, stagger: .13, ease: 'back.out(1.6)' }, .6)
+      .from('.n-rule', { scaleX: 0, opacity: 0, duration: 1, stagger: .13 }, .7)
+      .from('.n-label', { x: -14, opacity: 0, duration: .8, stagger: .13 }, .85)
+      .from('.n-script', { opacity: 0, duration: .8, stagger: .13 }, 1)
+      .from('.chron', { opacity: 0, y: 14, duration: .9 }, 1.7);
+    gsap.to('#spikes', { scale: 1.04, duration: 3.2, yoyo: true, repeat: -1, ease: 'sine.inOut', transformOrigin: '600px 150px' });
+    gsap.to('#core', { opacity: .8, duration: 2.4, yoyo: true, repeat: -1, ease: 'sine.inOut' });
+    nodeEls.forEach(function (n, i) {
+      gsap.to(n.querySelector('.n-icon'), { y: '-=4', duration: 3 + i * .3, yoyo: true, repeat: -1, ease: 'sine.inOut', delay: 2 + i * .2 });
+    });
+
+    /* pointer parallax */
+    var fx = gsap.quickTo('#flare', 'x', { duration: 1.2, ease: 'power3.out' }),
+        fy = gsap.quickTo('#flare', 'y', { duration: 1.2, ease: 'power3.out' }),
+        sx = gsap.quickTo('#stars', 'x', { duration: 1.6, ease: 'power3.out' }),
+        sy = gsap.quickTo('#stars', 'y', { duration: 1.6, ease: 'power3.out' });
+    document.getElementById('stage').addEventListener('pointermove', function (e) {
+      var px = e.clientX / window.innerWidth - .5, py = e.clientY / window.innerHeight - .5;
+      fx(px * -14); fy(py * -10); sx(px * 18); sy(py * 12);
+    });
+  }
+
+  /* ---------- chronicle (time travel) ---------- */
+  var EPOCHS = [
+    { id: 'primordial', name: 'Primordial', when: 'Before history', blurb: 'The first age. The Primordial One arrives and the human realm is made. No nation has a name yet.' },
+    { id: 'ancient', name: 'Ancient', when: 'Before the war', blurb: 'Ancient peoples and old civilizations, many of which survive only as ruins.' },
+    { id: 'archonwar', name: 'Archon War', when: '~2,000+ yrs ago', blurb: 'Gods fight for their seats, and the first Archons rise from the war.' },
+    { id: 'cataclysm', name: 'Cataclysm', when: '~500 yrs ago', blurb: 'Khaenri’ah falls, the Abyss opens, and the curse spreads.' },
+    { id: 'modern', name: 'Present', when: 'Today', blurb: 'The Traveler’s age. Every nation on the map is awake.' }
+  ];
+  var EB = {}; EPOCHS.forEach(function (e) { EB[e.id] = e; });
+  var stageEl = document.getElementById('stage'), track = document.getElementById('track'), eraBlurb = document.getElementById('eraBlurb');
+  EPOCHS.forEach(function (e, i) {
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'stop'; b.dataset.id = e.id; b.setAttribute('role', 'radio');
+    b.setAttribute('aria-checked', e.id === 'modern' ? 'true' : 'false');
+    b.tabIndex = e.id === 'modern' ? 0 : -1;
+    b.innerHTML = '<i class="dot"></i><b>' + e.name + '</b><small>' + e.when + '</small>';
+    b.addEventListener('click', function () { setEpoch(e.id, true); });
+    track.appendChild(b);
+  });
+  track.addEventListener('keydown', function (ev) {
+    var i = EPOCHS.findIndex(function (e) { return e.id === epoch; }), d = ev.key === 'ArrowLeft' || ev.key === 'ArrowUp' ? -1 : ev.key === 'ArrowRight' || ev.key === 'ArrowDown' ? 1 : 0;
+    if (!d) return;
+    ev.preventDefault(); var n = EPOCHS[Math.max(0, Math.min(EPOCHS.length - 1, i + d))];
+    setEpoch(n.id, true);
+  });
+  eraBlurb.textContent = EB.modern.blurb;
+  function setEpoch(id, animate) {
+    if (id === epoch) return;
+    epoch = id; history = {};
+    var idx = EPOCHS.findIndex(function (e) { return e.id === id; });
+    stageEl.dataset.era = id;
+    track.style.setProperty('--p', idx / (EPOCHS.length - 1));
+    Array.prototype.forEach.call(track.children, function (b) {
+      var on = b.dataset.id === id; b.setAttribute('aria-checked', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1; if (on && animate && document.activeElement && track.contains(document.activeElement)) b.focus();
+    });
+    nodeEls.forEach(function (n) {
+      var r = BY[n.dataset.id], d = id === 'modern' ? ['present', '', ''] : r.eras[id];
+      n.dataset.state = d[0]; n.querySelector('.n-tag').textContent = d[1];
+      n.setAttribute('aria-label', 'Ask about ' + r.name + (d[1] ? ', ' + d[1] : ''));
+    });
+    if (HAS_GSAP && !RM) {
+      gsap.killTweensOf(eraBlurb);
+      gsap.fromTo(eraBlurb, { opacity: 0, y: 6 }, { opacity: 1, y: 0, duration: .7, ease: 'power3.out', onStart: function () { eraBlurb.textContent = EB[id].blurb; } });
+      gsap.fromTo('.n-label, .n-script, .n-tag', { opacity: 0, x: -10 }, { opacity: function (i, el) { return el.classList.contains('n-script') ? .5 : el.classList.contains('n-tag') ? .85 : 1; }, x: 0, duration: .8, stagger: .015, ease: 'power3.out', clearProps: 'opacity' });
+      gsap.fromTo('#core', { scale: 1.9 }, { scale: 1, duration: 1.3, ease: 'expo.out', transformOrigin: '600px 150px' });
+      gsap.fromTo('.n-icon', { scale: .85 }, { scale: 1, duration: .9, stagger: .06, ease: 'back.out(1.8)', clearProps: 'scale' });
+    } else eraBlurb.textContent = EB[id].blurb;
+    if (current && panel.classList.contains('open')) show(current, true);
+  }
+
+  /* ---------- chat panel ---------- */
+  var panel = document.getElementById('panel'), scrim = document.getElementById('scrim'),
+      msgs = document.getElementById('msgs'), chips = document.getElementById('chips'),
+      ask = document.getElementById('ask'), sw = document.getElementById('switch'),
+      pTitle = document.getElementById('pTitle'), pScript = document.getElementById('pScript');
+  var current = null, lastNode = null, history = {}, busy = false;
+
+  REGIONS.forEach(function (r) {
+    var b = document.createElement('button');
+    b.className = 'sw'; b.type = 'button'; b.dataset.id = r.id; b.title = r.name; b.setAttribute('aria-label', r.name);
+    b.innerHTML = emblem(r.id);
+    b.addEventListener('click', function () { if (r.id !== current) show(r.id, true); });
+    sw.appendChild(b);
+  });
+
+  function bubble(role, text) {
+    var d = document.createElement('div'); d.className = 'msg ' + role; d.textContent = text; msgs.appendChild(d);
+    msgs.scrollTop = msgs.scrollHeight; return d;
+  }
+  function typeInto(el, text, done) {
+    if (RM) { el.textContent = text; done && done(); return; }
+    var words = text.split(' '), i = 0; el.textContent = '';
+    (function step() {
+      i++; el.textContent = words.slice(0, i).join(' '); msgs.scrollTop = msgs.scrollHeight;
+      if (i < words.length) setTimeout(step, 28); else done && done();
+    })();
+  }
+  function renderChips(id) {
+    chips.innerHTML = '';
+    var rr = BY[id], list = [];
+    if (epoch === 'modern') list = rr.qa.slice();
+    else { list.push({ q: 'What was it like then?' }); list.push(rr.qa[0]); }
+    list.push({ q: 'What ruins lie here?' });
+    list.forEach(function (e) {
+      var c = document.createElement('button'); c.type = 'button'; c.className = 'chip'; c.textContent = e.q;
+      c.addEventListener('click', function () { send(e.q); });
+      chips.appendChild(c);
+    });
+    if (HAS_GSAP && !RM) gsap.from(chips.children, { y: 10, opacity: 0, duration: .5, stagger: .08, ease: 'power3.out', delay: .15 });
+  }
+  function show(id, animate) {
+    var r = BY[id]; current = id;
+    pTitle.textContent = r.name; pScript.innerHTML = glyphs(r.name + 'x', 13);
+    document.getElementById('pEra').textContent = epoch === 'modern' ? '' : EB[epoch].name + ' · ' + EB[epoch].when;
+    Array.prototype.forEach.call(sw.children, function (b) { b.setAttribute('aria-current', b.dataset.id === id ? 'true' : 'false'); });
+    msgs.innerHTML = '';
+    if (!history[id]) history[id] = [{ role: 'bot', text: epoch === 'modern' ? r.intro : r.eras[epoch][2] }];
+    history[id].forEach(function (m) { bubble(m.role, m.text); });
+    renderChips(id);
+    if (HAS_GSAP && !RM && animate) gsap.from(['.p-title', '.msg'], { y: 14, opacity: 0, duration: .55, stagger: .06, ease: 'power3.out' });
+  }
+  function send(text) {
+    text = (text || '').trim(); if (!text || busy || !current) return;
+    var id = current; busy = true;
+    history[id].push({ role: 'me', text: text }); var me = bubble('me', text);
+    if (HAS_GSAP && !RM) gsap.from(me, { y: 12, opacity: 0, duration: .4, ease: 'power3.out' });
+    var t = document.createElement('div'); t.className = 'msg bot'; t.innerHTML = '<span class="typing"><i></i><i></i><i></i></span>';
+    msgs.appendChild(t); msgs.scrollTop = msgs.scrollHeight;
+    askLore(id, text).then(function (ans) {
+      history[id].push({ role: 'bot', text: ans });
+      if (current !== id) { busy = false; return; }
+      typeInto(t, ans, function () { busy = false; });
+    });
+    ask.value = '';
+  }
+  document.getElementById('composer').addEventListener('submit', function (e) { e.preventDefault(); send(ask.value); });
+
+  function open(id, node) {
+    lastNode = node || lastNode; show(id, false);
+    panel.removeAttribute('inert'); panel.setAttribute('aria-hidden', 'false');
+    panel.classList.add('open'); scrim.classList.add('open');
+    if (HAS_GSAP && !RM) {
+      gsap.from(['.p-head', '.p-title', '.msg', '.composer', '.note'], { y: 16, opacity: 0, duration: .6, stagger: .07, ease: 'power3.out', delay: .2 });
+    }
+    setTimeout(function () { ask.focus({ preventScroll: true }); }, RM ? 20 : 450);
+  }
+  function close() {
+    if (!panel.classList.contains('open')) return false;
+    panel.classList.remove('open'); scrim.classList.remove('open');
+    panel.setAttribute('aria-hidden', 'true'); panel.setAttribute('inert', '');
+    if (lastNode) lastNode.focus({ preventScroll: true });
+    return true;
+  }
+  nodeEls.forEach(function (n) { n.addEventListener('click', function () { open(n.dataset.id, n); }); });
+  scrim.addEventListener('click', close);
+  document.getElementById('pClose').addEventListener('click', close);
+  document.getElementById('mainClose').addEventListener('click', function () {
+    if (!close() && HAS_GSAP && !RM) gsap.fromTo('#core', { scale: 1.5, transformOrigin: '600px 150px' }, { scale: 1, duration: .9, ease: 'expo.out' });
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+})();
+</script>
+</body>
+</html>
