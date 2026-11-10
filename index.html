@@ -160,6 +160,8 @@ button { font-family: inherit; }
 .stop:focus-visible { outline: 2px solid var(--glow); outline-offset: 4px; border-radius: 6px; }
 .p-era { margin-top: 8px; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--glow); }
 .p-era:empty { display: none; }
+/* Botpress runs behind the drawer; hide its own window and bubble */
+.bpChatContainer { position: fixed !important; left: -10000px !important; top: 0 !important; opacity: 0 !important; pointer-events: none !important; }
 @media (max-width: 640px) {
   .stop small { display: none; }
   .stop b { font-size: 15px; text-align: center; }
@@ -202,7 +204,7 @@ button { font-family: inherit; }
 .p-title h2 { margin: 0; font-family: var(--font-display); font-size: 36px; font-weight: 400; letter-spacing: .04em; line-height: 1.1; }
 .p-title .scr { color: var(--ice); opacity: .55; margin-top: 6px; }
 .msgs { flex: 1; min-height: 0; overflow-y: auto; padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; scroll-behavior: smooth; }
-.msg { max-width: 88%; font-size: 15px; line-height: 1.6; padding: 11px 15px; border-radius: 16px; overflow-wrap: anywhere; }
+.msg { white-space: pre-wrap; max-width: 88%; font-size: 15px; line-height: 1.6; padding: 11px 15px; border-radius: 16px; overflow-wrap: anywhere; }
 .msg.bot { align-self: flex-start; background: rgba(214, 225, 255, .1); border: 1px solid var(--line); border-top-left-radius: 5px; }
 .msg.me { align-self: flex-end; background: linear-gradient(135deg, #7da2f0, #5878c8); color: #fff; border-top-right-radius: 5px; }
 .typing { display: inline-flex; gap: 5px; padding: 4px 0; }
@@ -328,7 +330,7 @@ button { font-family: inherit; }
       <input id="ask" type="text" placeholder="Ask the archive anything…" aria-label="Your question" />
       <button class="send" type="submit" aria-label="Send"><i data-lucide="send-horizontal"></i></button>
     </form>
-    <div class="note">Sample replies only. Draft lore, not yet checked against the wiki. The bot is not connected. Fan project, unofficial.</div>
+    <div class="note">Answers come from the Lore Keeper bot. Draft lore, not yet checked against the wiki, and it can be wrong. Fan project, unofficial.</div>
   </aside>
 </main>
 
@@ -668,6 +670,49 @@ button { font-family: inherit; }
     });
   }
 
+  /* ---------- Botpress bridge ---------- */
+  var BPS = { on: false, conv: false, sent: null, echoed: false, collector: null };
+  function bpClean(t) { return String(t).replace(/\*\*(.+?)\*\*/g, '$1').replace(/__(.+?)__/g, '$1').replace(/^#+\s*/gm, '').trim(); }
+  function bpSetup() {
+    var B = window.botpress;
+    if (BPS.on || !B || typeof B.on !== 'function') return;
+    BPS.on = true;
+    B.on('conversation', function () { BPS.conv = true; });
+    B.on('message', function (m) {
+      var b = m && m.block; if (!b || b.type !== 'text' || typeof b.text !== 'string') return;
+      if (BPS.sent && b.text === BPS.sent) { BPS.echoed = true; return; }
+      if (BPS.collector && BPS.echoed) BPS.collector(b.text);
+    });
+  }
+  var bpTimer = setInterval(function () { bpSetup(); if (BPS.on) clearInterval(bpTimer); }, 400);
+  setTimeout(function () { clearInterval(bpTimer); }, 30000);
+  function bpEnsure() {
+    var B = window.botpress;
+    if (BPS.conv) return Promise.resolve();
+    return new Promise(function (res) {
+      var t0 = Date.now();
+      try { B.open(); } catch (e) { return res(); }
+      (function wait() { if (BPS.conv || Date.now() - t0 > 9000) return res(); setTimeout(wait, 150); })();
+    });
+  }
+  function askBot(regionId, text) {
+    return new Promise(function (resolve, reject) {
+      var B = window.botpress;
+      if (!B || !BPS.on) return reject(new Error('bot not loaded'));
+      var r = BY[regionId], age = epoch === 'modern' ? 'Present day' : EB[epoch].name + ' (' + EB[epoch].when + ')';
+      var payload = '[Context: region=' + r.name + '; age=' + age + '] ' + text;
+      var parts = [], quiet = null, hard = null, done = false;
+      function finish(ok) {
+        if (done) return; done = true; clearTimeout(quiet); clearTimeout(hard); BPS.collector = null;
+        if (ok && parts.length) resolve(parts.map(bpClean).join('\n\n')); else reject(new Error('no answer'));
+      }
+      BPS.sent = payload; BPS.echoed = false;
+      BPS.collector = function (t) { parts.push(t); clearTimeout(quiet); quiet = setTimeout(function () { finish(true); }, 1800); };
+      hard = setTimeout(function () { finish(parts.length > 0); }, 30000);
+      bpEnsure().then(function () { return B.sendMessage(payload); }).catch(function () { finish(false); });
+    });
+  }
+
   /* ---------- chronicle (time travel) ---------- */
   var EPOCHS = [
     { id: 'primordial', name: 'Primordial', when: 'Before history', blurb: 'The first age. The Primordial One arrives and the human realm is made. No nation has a name yet.' },
@@ -776,7 +821,9 @@ button { font-family: inherit; }
     if (HAS_GSAP && !RM) gsap.from(me, { y: 12, opacity: 0, duration: .4, ease: 'power3.out' });
     var t = document.createElement('div'); t.className = 'msg bot'; t.innerHTML = '<span class="typing"><i></i><i></i><i></i></span>';
     msgs.appendChild(t); msgs.scrollTop = msgs.scrollHeight;
-    askLore(id, text).then(function (ans) {
+    askBot(id, text).catch(function () {
+      return askLore(id, text).then(function (a) { return a + '\n\n(The bot did not answer, so this is a built-in sample reply.)'; });
+    }).then(function (ans) {
       history[id].push({ role: 'bot', text: ans });
       if (current !== id) { busy = false; return; }
       typeInto(t, ans, function () { busy = false; });
