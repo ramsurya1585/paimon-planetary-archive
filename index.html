@@ -533,8 +533,8 @@ button { font-family: inherit; }
     natlan: {
       ruins: 'Old tribal ruins and battle sites from the Archon War lie across the land, and the tribes still honor many of them.',
       eras: {
-        cataclysm: ['present', 'Tribes endure', 'Natlan’s tribes carried on their fighting and their rites under the Pyro Archon.'],
-        archonwar: ['present', 'Land of battle', 'Natlan was a land of war. A former Pyro Archon fell in the Archon War, and the tribes inherited a long habit of fighting.'],
+        cataclysm: ['present', 'Tribes endure', 'The Abyss overran the Night Kingdom beneath Natlan, and the Pyro Archon Mavuika placed her life in the Sacred Flame to return in a later age.'],
+        archonwar: ['present', 'Land of battle', 'Natlan was a land of war. Its Pyro Archons were mortals who won the throne in battle, and the second of them led the tribes to defeat the half-dragon Och-Kan.'],
         ancient: ['ruin', 'Older tribes', 'Before the Archons, older tribes lived in Natlan. Their ruins are scattered across the land.'],
         primordial: ['veiled', 'Unnamed land', 'There was no Natlan yet, only fire, stone and open land.']
       }
@@ -579,7 +579,7 @@ button { font-family: inherit; }
     r.eras = x.eras; r.ruins = x.ruins; r.x = p[0]; r.y = p[1]; r.mx = p[2]; r.my = p[3];
   });
   var BY = {}; REGIONS.forEach(function (r) { BY[r.id] = r; });
-  var FALLBACK = 'I can only give sample answers for now. Try one of the suggested questions while the real archive is being built.';
+  var FALLBACK = 'Information not found. The ley lines that carry this record are damaged.';
 
   /* Swap this function for a real call to the lore bot later. */
   function askLore(regionId, text) {
@@ -862,7 +862,7 @@ button { font-family: inherit; }
     var t = document.createElement('div'); t.className = 'msg bot'; t.innerHTML = '<span class="typing"><i></i><i></i><i></i></span>';
     msgs.appendChild(t); msgs.scrollTop = msgs.scrollHeight;
     askBot(id, text).catch(function () {
-      return askLore(id, text).then(function (a) { return a + '\n\n(The bot did not answer, so this is a built-in sample reply.)'; });
+      return askLore(id, text).then(function (a) { return a === FALLBACK ? a : a + '\n\n(The bot did not answer, so this is a built-in sample reply.)'; });
     }).then(function (ans) {
       history[id].push({ role: 'bot', text: ans });
       if (current !== id) { busy = false; return; }
