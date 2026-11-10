@@ -162,6 +162,8 @@ button { font-family: inherit; }
 .p-era:empty { display: none; }
 /* Botpress runs behind the drawer; hide its own window and bubble */
 .bpChatContainer { position: fixed !important; left: -10000px !important; top: 0 !important; opacity: 0 !important; pointer-events: none !important; }
+
+
 @media (max-width: 640px) {
   .stop small { display: none; }
   .stop b { font-size: 15px; text-align: center; }
@@ -239,6 +241,34 @@ button { font-family: inherit; }
   .panel { top: auto; left: 0; width: 100%; height: 82%; border-left: 0; border-top: 1px solid var(--line); border-radius: 22px 22px 0 0; transform: translateY(104%); }
   .panel.open { transform: none; }
 }
+/* chat window: large and centered on desktop */
+.panel > .p-head { order: 0; } .panel > .p-title { order: 1; } .panel > .msgs { order: 2; }
+.panel > .chips { order: 3; } .panel > .composer { order: 4; } .panel > .note { order: 5; }
+@media (min-width: 641px) {
+  .panel {
+    top: 0; bottom: 0; left: 0; right: 0; margin: auto; width: min(900px, calc(100% - 64px)); height: min(82vh, 780px);
+    border: 1px solid var(--line); border-radius: 28px; box-shadow: 0 30px 80px rgba(4, 8, 30, .55); padding: 0;
+    transform: translateY(18px) scale(.97); opacity: 0; visibility: hidden;
+    transition: transform .6s cubic-bezier(.22, 1, .36, 1), opacity .4s ease, visibility 0s linear .6s;
+  }
+  .panel.open { transform: none; opacity: 1; visibility: visible; transition-delay: 0s; }
+  .scrim.open { backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+  .msgs { padding: 18px 40px; }
+  .p-head, .p-title, .chips, .composer, .note { padding-left: 40px; padding-right: 40px; }
+  .composer input { height: 56px; border-radius: 28px; font-size: 16px; padding: 0 24px; }
+  .send { width: 56px; height: 56px; }
+  .msg { max-width: 80%; font-size: 16px; }
+}
+/* empty state: greeting and big input in the middle, like a search box */
+.panel.fresh .p-title { margin-top: auto; text-align: center; border-bottom: 0; padding-bottom: 6px; }
+.panel.fresh .p-title h2 { font-size: 56px; }
+.panel.fresh .p-title .scr, .panel.fresh .p-era { display: flex; justify-content: center; }
+.panel.fresh .p-era:empty { display: none; }
+.panel.fresh .msgs { flex: 0 0 auto; overflow: visible; align-items: center; padding-top: 4px; padding-bottom: 8px; }
+.panel.fresh .msg.bot { align-self: center; text-align: center; background: none; border: 0; color: var(--ice); max-width: 600px; padding: 4px 0; }
+.panel.fresh .composer { width: min(700px, 100%); box-sizing: border-box; margin: 14px auto 0; }
+.panel.fresh > .chips { order: 5; justify-content: center; margin-bottom: auto; padding-top: 18px; }
+.panel.fresh > .note { order: 6; }
 @media (prefers-reduced-motion: reduce) {
   .panel { transition-duration: .01s; }
   .scrim { transition-duration: .01s; }
@@ -811,13 +841,14 @@ button { font-family: inherit; }
     msgs.innerHTML = '';
     if (!history[id]) history[id] = [{ role: 'bot', text: epoch === 'modern' ? r.intro : r.eras[epoch][2] }];
     history[id].forEach(function (m) { bubble(m.role, m.text); });
+    panel.classList.toggle('fresh', !history[id].some(function (m) { return m.role === 'me'; }));
     renderChips(id);
     if (HAS_GSAP && !RM && animate) gsap.from(['.p-title', '.msg'], { y: 14, opacity: 0, duration: .55, stagger: .06, ease: 'power3.out' });
   }
   function send(text) {
     text = (text || '').trim(); if (!text || busy || !current) return;
     var id = current; busy = true;
-    history[id].push({ role: 'me', text: text }); var me = bubble('me', text);
+    history[id].push({ role: 'me', text: text }); panel.classList.remove('fresh'); var me = bubble('me', text);
     if (HAS_GSAP && !RM) gsap.from(me, { y: 12, opacity: 0, duration: .4, ease: 'power3.out' });
     var t = document.createElement('div'); t.className = 'msg bot'; t.innerHTML = '<span class="typing"><i></i><i></i><i></i></span>';
     msgs.appendChild(t); msgs.scrollTop = msgs.scrollHeight;
