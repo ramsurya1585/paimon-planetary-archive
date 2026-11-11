@@ -27,3 +27,9 @@ namespace_id = "1001"
 
 # GEMINI_API_KEY is NOT set here. Store it as a secret:
 #   npx wrangler secret put GEMINI_API_KEY
+
+# Run the Worker in the US, next to Google's servers. Without this it runs in
+# whichever Cloudflare data centre is nearest the visitor, and Gemini rejects
+# some of those with "User location is not supported".
+[placement]
+region = "gcp:us-east4"
