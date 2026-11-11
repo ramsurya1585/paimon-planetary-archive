@@ -891,7 +891,7 @@ button { font-family: inherit; }
   }
   function rlAllowed() { return rlLoad().length < RL_MAX; }
   function rlRecord() { try { var a = rlLoad(); a.push(Date.now()); localStorage.setItem(RL_KEY, JSON.stringify(a)); } catch (e) { /* storage blocked: skip */ } }
-  var RL_NOTICE = 'The ley lines need to rest. The question limit has been reached for now, so please come back later.';
+  var RL_NOTICE = 'Due to the Holy Soil phenomenon, the ley lines are damaged and unable to retrieve information. Please try again later.';
 
   function send(text) {
     text = (text || '').trim(); if (!text || busy || !current) return;
