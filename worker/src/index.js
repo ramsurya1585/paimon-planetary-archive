@@ -117,21 +117,33 @@ export default {
 
     const model = env.GEMINI_MODEL || 'gemini-3.6-flash';
     const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent';
+    const payload = JSON.stringify({
+      systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+      contents: contents,
+      generationConfig: { temperature: 0.4, maxOutputTokens: MAX_OUTPUT_TOKENS }
+    });
+    // Google sometimes answers 503 "high demand"; retry a few times within a 40 second budget
+    // so the page can still fall back in time.
+    const deadline = Date.now() + 40000;
     let res;
-    try {
-      res = await fetch(url, {
-        method: 'POST',
-        signal: AbortSignal.timeout(40000), // give up so the page can fall back
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-          contents: contents,
-          generationConfig: { temperature: 0.4, maxOutputTokens: MAX_OUTPUT_TOKENS }
-        })
-      });
-    } catch (e) {
-      return reply(502, { error: 'upstream_unreachable' }, origin);
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const left = deadline - Date.now();
+      if (left < 3000) break;
+      try {
+        res = await fetch(url, {
+          method: 'POST',
+          signal: AbortSignal.timeout(left),
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
+          body: payload
+        });
+      } catch (e) {
+        if (!res) return reply(502, { error: 'upstream_unreachable' }, origin);
+        break;
+      }
+      if (res.status !== 503 && res.status !== 500) break;
+      if (attempt < 2) await new Promise(function (r) { setTimeout(r, 800 * (attempt + 1)); });
     }
+    if (!res) return reply(502, { error: 'upstream_unreachable' }, origin);
 
     // 5. Never pass Google's error details to the browser; log them for `wrangler tail` instead.
     if (!res.ok) {
