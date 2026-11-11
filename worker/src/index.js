@@ -148,7 +148,9 @@ export default {
     // 5. Never pass Google's error details to the browser; log them for `wrangler tail` instead.
     if (!res.ok) {
       console.log('gemini error', res.status, (await res.text()).slice(0, 500));
-      return reply(res.status === 429 ? 429 : 502, { error: res.status === 429 ? 'rate_limited' : 'upstream_error' }, origin);
+      // Google's own quota running out (429) is reported as 503 so the page falls back to
+      // Botpress. 429 is kept for this Worker's per-visitor limit only.
+      return reply(res.status === 429 ? 503 : 502, { error: res.status === 429 ? 'quota_exhausted' : 'upstream_error' }, origin);
     }
     let data;
     try { data = await res.json(); } catch (e) { return reply(502, { error: 'upstream_error' }, origin); }
