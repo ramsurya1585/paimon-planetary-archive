@@ -893,6 +893,9 @@ button { font-family: inherit; }
   function rlRecord() { try { var a = rlLoad(); a.push(Date.now()); localStorage.setItem(RL_KEY, JSON.stringify(a)); } catch (e) { /* storage blocked: skip */ } }
   var RL_NOTICE = 'Due to the Holy Soil phenomenon, the ley lines are damaged and unable to retrieve information. Please try again later.';
 
+  var DEGRADED_NOTICE = 'Error connecting to the archive due to the Holy Soil phenomenon. Damage to the ley lines detected. Shifting to default memory with shorter replies until the ley lines are restored.';
+  var degraded = false;
+
   function send(text) {
     text = (text || '').trim(); if (!text || busy || !current) return;
     if (!rlAllowed()) { bubble('bot', RL_NOTICE); ask.value = ''; return; }
@@ -902,7 +905,15 @@ button { font-family: inherit; }
     if (HAS_GSAP && !RM) gsap.from(me, { y: 12, opacity: 0, duration: .4, ease: 'power3.out' });
     var t = document.createElement('div'); t.className = 'msg bot'; t.innerHTML = '<span class="typing"><i></i><i></i><i></i></span>';
     msgs.appendChild(t); msgs.scrollTop = msgs.scrollHeight;
-    askGemini(id, text).catch(function () { return askBot(id, text); }).catch(function () {
+    askGemini(id, text).then(function (a) { degraded = false; return a; }, function () {
+      /* Gemini is unreachable or out of quota: say so once, then answer from Botpress. */
+      if (GEMINI_URL && !degraded) {
+        degraded = true;
+        history[id].push({ role: 'bot', text: DEGRADED_NOTICE });
+        if (current === id) { var n = document.createElement('div'); n.className = 'msg bot'; n.textContent = DEGRADED_NOTICE; msgs.insertBefore(n, t); msgs.scrollTop = msgs.scrollHeight; }
+      }
+      return askBot(id, text);
+    }).catch(function () {
       return askLore(id, text).then(function (a) { return a === FALLBACK ? a : a + '\n\n(The bot did not answer, so this is a built-in sample reply.)'; });
     }).then(function (ans) {
       history[id].push({ role: 'bot', text: ans });
