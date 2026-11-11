@@ -1,3 +1,8 @@
 source/
 knowledge-gaps.md
 knowledge/
+
+# Worker: local secrets and build output
+.dev.vars
+.wrangler/
+node_modules/

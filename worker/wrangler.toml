@@ -1,0 +1,27 @@
+name = "paimon-lore-keeper"
+main = "src/index.js"
+compatibility_date = "2026-01-01"
+
+# Lets the Worker bundle the private knowledge base as text.
+[[rules]]
+type = "Text"
+globs = ["**/*.md"]
+fallthrough = true
+
+[vars]
+# Only these sites may call the Worker from a browser. Comma separated, no trailing slash.
+ALLOWED_ORIGINS = "https://ramsurya1585.github.io"
+# Change this to switch Gemini models. See the model list in Google AI Studio.
+GEMINI_MODEL = "gemini-2.5-flash"
+
+# Per-visitor limit: 5 questions per minute per IP address.
+[[ratelimits]]
+name = "RATE_LIMITER"
+namespace_id = "1001"
+
+  [ratelimits.simple]
+  limit = 5
+  period = 60
+
+# GEMINI_API_KEY is NOT set here. Store it as a secret:
+#   npx wrangler secret put GEMINI_API_KEY

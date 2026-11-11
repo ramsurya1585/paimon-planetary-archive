@@ -356,7 +356,7 @@ button { font-family: inherit; }
     <div class="track" id="track" role="radiogroup" aria-label="Age of Teyvat"></div>
   </section>
 
-  <p class="legal" id="legal">Unofficial fan project, not affiliated with HoYoverse. Lore summarized from the <a href="https://genshin-impact.fandom.com/wiki/Genshin_Impact_Wiki" target="_blank" rel="noopener noreferrer">Genshin Impact Wiki</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank" rel="noopener noreferrer">CC BY-SA 3.0</a>). Chat is processed by Botpress.</p>
+  <p class="legal" id="legal">Unofficial fan project, not affiliated with HoYoverse. Lore summarized from the <a href="https://genshin-impact.fandom.com/wiki/Genshin_Impact_Wiki" target="_blank" rel="noopener noreferrer">Genshin Impact Wiki</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank" rel="noopener noreferrer">CC BY-SA 3.0</a>). Chat is processed by Google Gemini or Botpress.</p>
   <div class="scrim" id="scrim"></div>
 
   <aside class="panel" id="panel" role="dialog" aria-modal="true" aria-labelledby="pTitle" aria-hidden="true" inert>
@@ -372,10 +372,10 @@ button { font-family: inherit; }
     <div class="msgs" id="msgs" aria-live="polite"></div>
     <div class="chips" id="chips"></div>
     <form class="composer" id="composer" autocomplete="off">
-      <input id="ask" type="text" placeholder="Ask the archive anything…" aria-label="Your question" />
+      <input id="ask" type="text" maxlength="400" placeholder="Ask the archive anything…" aria-label="Your question" />
       <button class="send" type="submit" aria-label="Send"><i data-lucide="send-horizontal"></i></button>
     </form>
-    <div class="note">Your questions are sent to the Lore Keeper bot, run by Botpress. Lore is summarized from the Genshin Impact Wiki (CC BY-SA 3.0), is a draft, and can be wrong. Unofficial fan project.</div>
+    <div class="note">Your questions are sent to the Lore Keeper bot, which is answered by Google Gemini or Botpress. Lore is summarized from the Genshin Impact Wiki (CC BY-SA 3.0), is a draft, and can be wrong. Unofficial fan project.</div>
   </aside>
 </main>
 
@@ -758,6 +758,30 @@ button { font-family: inherit; }
     });
   }
 
+  /* ---------- Gemini bridge ----------
+     Paste the Worker address here after deploying it (see worker/README.md).
+     This is only an address. The Gemini key lives in the Worker and never in this page.
+     While it is empty, the chat keeps using Botpress. */
+  var GEMINI_URL = '';
+  function askGemini(regionId, text) {
+    if (!GEMINI_URL) return Promise.reject(new Error('gemini not configured'));
+    var past = (history[regionId] || []).slice(1, -1).slice(-6).map(function (m) { return { role: m.role, text: m.text }; });
+    var ctl = window.AbortController ? new AbortController() : null;
+    var timer = setTimeout(function () { if (ctl) ctl.abort(); }, 45000);
+    return fetch(GEMINI_URL, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ctl ? ctl.signal : undefined,
+      body: JSON.stringify({ region: regionId, age: epoch, question: text, history: past })
+    }).then(function (res) {
+      clearTimeout(timer);
+      if (res.status === 429) return RL_NOTICE;
+      if (!res.ok) throw new Error('worker ' + res.status);
+      return res.json().then(function (d) {
+        if (!d || typeof d.answer !== 'string' || !d.answer.trim()) throw new Error('no answer');
+        return bpClean(d.answer);
+      });
+    }, function (e) { clearTimeout(timer); throw e; });
+  }
+
   /* ---------- chronicle (time travel) ---------- */
   var EPOCHS = [
     { id: 'primordial', name: 'Primordial', when: 'Before history', blurb: 'The first age. The Primordial One arrives and the human realm is made. No nation has a name yet.' },
@@ -878,7 +902,7 @@ button { font-family: inherit; }
     if (HAS_GSAP && !RM) gsap.from(me, { y: 12, opacity: 0, duration: .4, ease: 'power3.out' });
     var t = document.createElement('div'); t.className = 'msg bot'; t.innerHTML = '<span class="typing"><i></i><i></i><i></i></span>';
     msgs.appendChild(t); msgs.scrollTop = msgs.scrollHeight;
-    askBot(id, text).catch(function () {
+    askGemini(id, text).catch(function () { return askBot(id, text); }).catch(function () {
       return askLore(id, text).then(function (a) { return a === FALLBACK ? a : a + '\n\n(The bot did not answer, so this is a built-in sample reply.)'; });
     }).then(function (ans) {
       history[id].push({ role: 'bot', text: ans });
