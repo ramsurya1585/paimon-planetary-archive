@@ -762,7 +762,7 @@ button { font-family: inherit; }
      Paste the Worker address here after deploying it (see worker/README.md).
      This is only an address. The Gemini key lives in the Worker and never in this page.
      While it is empty, the chat keeps using Botpress. */
-  var GEMINI_URL = '';
+  var GEMINI_URL = 'https://paimon-lore-keeper.ramsurya1585.workers.dev';
   function askGemini(regionId, text) {
     if (!GEMINI_URL) return Promise.reject(new Error('gemini not configured'));
     var past = (history[regionId] || []).slice(1, -1).slice(-6).map(function (m) { return { role: m.role, text: m.text }; });

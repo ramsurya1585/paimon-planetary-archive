@@ -115,12 +115,13 @@ export default {
     const contents = cleanHistory(body.history);
     contents.push({ role: 'user', parts: [{ text: '[Region: ' + region + '. Age: ' + age + '.]\n' + question }] });
 
-    const model = env.GEMINI_MODEL || 'gemini-2.5-flash';
+    const model = env.GEMINI_MODEL || 'gemini-3.6-flash';
     const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent';
     let res;
     try {
       res = await fetch(url, {
         method: 'POST',
+        signal: AbortSignal.timeout(40000), // give up so the page can fall back
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },

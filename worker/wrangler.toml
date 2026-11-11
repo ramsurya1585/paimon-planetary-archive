@@ -1,6 +1,8 @@
 name = "paimon-lore-keeper"
 main = "src/index.js"
 compatibility_date = "2026-01-01"
+workers_dev = true
+preview_urls = false
 
 # Lets the Worker bundle the private knowledge base as text.
 [[rules]]
@@ -12,7 +14,7 @@ fallthrough = true
 # Only these sites may call the Worker from a browser. Comma separated, no trailing slash.
 ALLOWED_ORIGINS = "https://ramsurya1585.github.io"
 # Change this to switch Gemini models. See the model list in Google AI Studio.
-GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_MODEL = "gemini-3.6-flash"
 
 # Per-visitor limit: 5 questions per minute per IP address.
 [[ratelimits]]
